@@ -1,0 +1,40 @@
+# --- Documentos locales (no se versionan) ---
+/Formato_de_informe_técnico_DT_spa.md
+
+# --- Confidencialidad: datos crudos de la empresa NUNCA al repo ---
+data/raw/
+*.xlsx
+*.xls
+*.csv
+!data/processed/*.csv
+
+# --- Secretos (credenciales de Supabase, etc.) ---
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# --- Claude Code: configuración personal/local ---
+CLAUDE.local.md
+.claude/settings.local.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- Sistema / editores ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
