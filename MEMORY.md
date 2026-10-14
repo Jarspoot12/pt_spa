@@ -42,3 +42,23 @@ Complemento de `AGENTS.md`. Aquí van reglas que surgen **durante** el desarroll
 - Validar definición de temporada alta/baja con el encargado de compras (preliminar: dic–abr, jul–ago).
 - Confirmar aceptación de los umbrales de éxito (MAPE ≤ 20 %, −15 % vs. base).
 -->
+
+## Cómo trabajar el uso de branches en la creación de features para el repositorio del proyecto
+El ciclo completo, para cada cosa nueva
+
+1. parte siempre del main actualizado
+git switch main && git pull   
+2. rama nueva
+git switch -c feat/etl-limpieza-fechas  
+3. commits
+...trabajas, git add, git commit...       
+4. subes la rama
+git push -u origin feat/etl-limpieza-fechas
+5. abres el PR → revisión → merge en GitHub
+6. borras la rama (remota y local) y vuelves al paso 1
+    0. borrar en remoto (github) después de aprobar el PR
+    1. git switch main
+    2. git pull
+    3. git branch -d chore/contexto-ia ------- borra la rama local
+    4. git fetch --prune ----- limpia referencias a ramas remotas borradas 
+Las ramas deben vivir poco: días, no semanas. Mientras más tiempo dure una rama, más se aleja de main y más conflictos tendrás al fusionarla.
