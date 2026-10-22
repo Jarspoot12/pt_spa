@@ -14,6 +14,12 @@ Complemento de `AGENTS.md`. Aquí van reglas que surgen **durante** el desarroll
 - [2026-10-25] Usar `holidays` (paquete, país MX) para festivos; Semana Santa se calcula aparte. Porqué: no viene en el calendario oficial de festivos.
 -->
 
+- [2026-10-22] `ventas` guarda solo los 363 con historial completo; `productos` conserva los 691. Porqué: solo esos se proyectan, y con `productos` completo un producto conocido no se confunde con uno nuevo.
+- [2026-10-22] Atípicos y variables de calendario se calculan al modelar, no se guardan. Porqué: mantener los datos originales y evitar que meses de evaluación influyan en el umbral.
+- [2026-10-22] Cargas mensuales: solo meses posteriores al último cargado, nunca se reescriben los anteriores. Porqué: decisión del equipo para no alterar datos ya validados.
+- [2026-10-22] Cada control de calidad que falla detiene la carga entera. Porqué: no dejar datos parciales en Supabase.
+- [2026-10-22] Constantes del ETL viven en su módulo; cuando haya umbrales globales (horizonte, K) se crea `src/config.py` y se migran. Porqué: no crear archivos sin uso.
+
 ## Correcciones al agente
 
 <!-- EJEMPLOS
@@ -22,12 +28,19 @@ Complemento de `AGENTS.md`. Aquí van reglas que surgen **durante** el desarroll
 - [2026-10-24] Antes de proponer una nueva dependencia, verifica que funcione en Streamlit Community Cloud. Porqué: Prophet falló al compilar con una versión de Python.
 -->
 
+- [2026-10-22] No agregues variables, columnas ni archivos que no sean necesarios. Porqué: el equipo prefiere pocos archivos y una base sin ruido.
+- [2026-10-22] En el informe no cambies el conjunto de productos sin justificarlo (363 vs 352): rompe el hilo del lector. Porqué: pasó con la sección de tendencia.
+
 ## Lecciones aprendidas / trampas conocidas
 
 <!-- EJEMPLOS
 - [2026-10-28] El archivo de 2022 trae fechas en formato dd/mm/aaaa y el resto en aaaa-mm-dd. Porqué: cambió el sistema interno ese año.
 - [2026-11-02] Supabase free tier pausa el proyecto tras 7 días sin actividad; reactivarlo antes de la demo. Porqué: el tablero falla sin mensaje claro.
 -->
+
+- [2026-10-22] El Excel trae en cada hoja: fila 1 "AÑO: 20XX", fila 2 encabezado, filas de producto y fila final "TOTAL: N". La clave mezcla números y texto: leerla siempre como texto. Porqué: evita cruces fallidos entre hojas.
+- [2026-10-22] Ejecuta las pruebas con `python -m pytest tests`, no con `pytest`. Porqué: así Python encuentra la carpeta `src`.
+- [2026-10-22] `cantidad` mezcla piezas y kg (11 productos a granel). Porqué: sumarlas distorsiona los totales.
 
 ## Preferencias del equipo
 
@@ -42,6 +55,8 @@ Complemento de `AGENTS.md`. Aquí van reglas que surgen **durante** el desarroll
 - Validar definición de temporada alta/baja con el encargado de compras (preliminar: dic–abr, jul–ago).
 - Confirmar aceptación de los umbrales de éxito (MAPE ≤ 20 %, −15 % vs. base).
 -->
+
+- Aceptación de los umbrales de éxito (MAPE ≤ 20 %, −15 % vs. base): propuestos por el equipo.
 
 ## Cómo trabajar el uso de branches en la creación de features para el repositorio del proyecto
 El ciclo completo, para cada cosa nueva

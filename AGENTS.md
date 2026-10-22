@@ -13,11 +13,22 @@ Contexto persistente para agentes de IA. **Fuente de verdad:** informe técnico 
 
 ## 2. Datos [Informe]
 
-- Disponible: **solo `producto`, `cantidad`, `fecha` de venta**, 5 años de historial, en varios Excel de un sistema interno.
+- Disponible: **solo `producto`, `cantidad`, `fecha` de venta**, 5 años de historial (ene-2022 a sep-2026), en un único Excel (`HISTORICOS_DE_VENTAS.xlsx`) con una hoja por año (`VTAS 2022` … `VTAS 2026`). En la base el producto se identifica con `clave`.
 - **No hay:** compras, inventario, precios, canal de venta, listado de materiales. No inventar ni asumir estas variables.
 - Sesgo conocido: en meses con quiebre de stock las ventas **subestiman** la demanda real.
 - Calidad mínima del dataset de modelado: **≤5 % nulos** por variable relevante, **100 %** consistencia de formatos, **0 %** duplicados exactos en `producto`+`fecha`.
-- Variables derivadas: mes, temporada alta/baja, día festivo. Temporada (preliminar, se valida en EDA): **alta = dic–abr y jul–ago**; baja = resto.
+- Calendario [Informe 5.3.5]: el mes es la variable de calendario y se deriva de `fecha` al modelar (no se guarda en la base). Temporada, aprobada por la empresa y observada en los datos: **alta = mar, abr, may, jul, ago, nov, dic**; baja = ene, feb, jun, sep, oct. Se calculó con 2022–2025 y **no se recalcula** al agregar meses; solo sirve para reportar el error por temporada (5.6), no es variable del modelo. Semana Santa y festivos: evaluarlos en el modelado, no asumirlos.
+
+## 2.1 Universo y ETL implementado [Informe 5.3–5.4]
+
+- Solo se modelan los **363** productos con `historial_completo = 1` (aparecen en las cinco hojas). Los otros 328 vigentes (91 nuevos y 237 con historia parcial) no se proyectan.
+- `productos`: 691 filas (`clave`, `descripcion`, `historial_completo`, `unidad` PZA/KG). `ventas`: solo los 363, llave (`clave`, `fecha`), fecha ISO día 01 (20,691 filas a sep-2026).
+- Los ceros son ventas reales; no se imputan. Los 11 productos en KG no se suman con piezas: los totales en piezas filtran `unidad = 'PZA'`.
+- Atípicos y variables de calendario **no se guardan en la base**: se calculan al modelar, con el umbral solo sobre datos de entrenamiento (Tukey, Q3 + 3×RIC sobre meses con venta, productos con ≥ 8 meses con venta). El pedido del kit 8419 de 2022-12 es un atípico confirmado y entra como parámetro.
+- Carga inicial una sola vez; después, carga mensual solo con la hoja del año en curso. Solo se agregan meses posteriores al último cargado: **los meses ya cargados no se modifican**. `--hasta` es el último mes cerrado (hoy 2026-09; octubre incompleto no se carga).
+- Los controles de 5.3.2 son automáticos y **detienen** la carga completa si alguno falla; no se escribe nada.
+- `historial_completo` queda fijo tras la carga inicial; un producto nuevo entra con 0.
+- Comandos (desde la raíz): `python -m src.etl.pipeline {inicial|incremental} --hasta AAAA-MM [--simular]` y `python -m pytest tests`.
 
 ## 3. Stack tecnológico [Informe]
 
@@ -30,6 +41,7 @@ Un solo lenguaje: **Python**. Costo cero: solo herramientas gratuitas / free tie
 | Datos | Supabase (PostgreSQL administrado, free tier) — repositorio analítico **único**; acceso por SQL |
 
 - Dependencias en `requirements.txt`; instrucciones en `README.md`.
+- Dependencias del ETL: pandas, openpyxl, psycopg[binary], python-dotenv; pruebas con pytest. La conexión usa `DATABASE_URL` (en `.env`, no versionado).
 - No agregar herramientas de pago, otra plataforma de BI, ni otro lenguaje/framework de UI.
 
 ## 4. Arquitectura [Informe]
@@ -44,17 +56,17 @@ Un solo lenguaje: **Python**. Costo cero: solo herramientas gratuitas / free tie
 data/          # Copias procesadas de apoyo para pruebas locales (raw EXCLUIDO)
 notebooks/     # EDA y comparación inicial de modelos (Objetivo 2)
 src/
-  etl/         # Extracción, limpieza y carga a Supabase (Obj. 3)
+  etl/         # extract, validate, transform, pipeline: lógica del ETL, sin SQL (Obj. 3)
   features/    # Variables derivadas, reutilizables en entrenamiento y proyección (Obj. 3)
   models/      # Entrenamiento, comparación, selección y reporte vs. base (Obj. 4 y 5)
-  db/          # Esquema y acceso a la BD analítica (Obj. 3)
+  db/          # schema.sql y repository.py: todo el SQL y la conexión; sin reglas de limpieza (Obj. 3)
 app/           # Tablero Streamlit (Obj. 6)
-tests/         # Pruebas unitarias de funciones de cálculo
+tests/         # test_etl.py (Excel sintético y BD en memoria) y pruebas de funciones de cálculo
 requirements.txt
 README.md
 ```
 
-No mezclar responsabilidades: la lógica de cálculo vive en `src/`; `app/` solo orquesta visualización y llama a `src/`. Las features deben ser **las mismas funciones** en entrenamiento y en proyección.
+No mezclar responsabilidades: la lógica de cálculo vive en `src/`; `app/` solo orquesta visualización y llama a `src/`. Las features deben ser **las mismas funciones** en entrenamiento y en proyección. ETL y BD separados: `src/etl` no contiene SQL ni importa `psycopg`; `src/db` no contiene reglas de limpieza.
 
 ## 5. Modelado y evaluación [Informe]
 
@@ -95,12 +107,14 @@ Segmentación por canal · actualización en tiempo real · conversión de unida
 - **[Convención]** Nunca versionar secretos (`.env`, `.streamlit/secrets.toml`); usar `st.secrets` / variables de entorno.
 - **[Convención]** Nunca hacer commit de notebooks con salidas que muestren registros crudos; limpiar salidas antes del commit.
 - **[Convención]** No ampliar el alcance ni cambiar el stack sin confirmación explícita del equipo.
+- **[Convención]** Nunca ejecutar la carga real (`pipeline` sin `--simular`) ni escribir en Supabase sin confirmación explícita; probar antes con `--simular` y `pytest`.
+- **[Convención]** Nunca hacer UPDATE ni DELETE sobre `ventas`: los meses cargados no se modifican.
 
 ## 9. Convenciones de código [Convención]
 
 - Python 3.12. Formato y lint con **ruff**; pruebas con **pytest**.
 - `snake_case` para funciones/variables/módulos, `PascalCase` para clases, `UPPER_SNAKE_CASE` para constantes.
-- Identificadores en inglés; docstrings, comentarios, documentación y UI en **español**. Columnas de BD en español y sin acentos (`producto`, `cantidad`, `fecha`).
+- Identificadores en inglés en el código de modelado y tablero; en `src/etl` y `src/db` los de dominio van en español, alineados con las columnas de la BD (`clave`, `fecha`, `cantidad`, `historial_completo`). Docstrings, comentarios, documentación y UI en **español**. Columnas de BD en español y sin acentos.
 - Type hints en funciones públicas. Funciones puras y pequeñas para todo cálculo (métricas, features, top K, variación) → cada una con prueba en `tests/`.
 - Configuración (umbrales, horizonte, K, temporadas) en un solo módulo de configuración, no hardcodeada en varios lugares.
 - Semillas fijas para reproducibilidad.
