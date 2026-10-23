@@ -21,7 +21,7 @@ Contexto persistente para agentes de IA. **Fuente de verdad:** informe técnico 
 
 ## 2.1 Universo y ETL implementado [Informe 5.3–5.4]
 
-- Solo se modelan los **363** productos con `historial_completo = 1` (aparecen en las cinco hojas). Los otros 328 vigentes (91 nuevos y 237 con historia parcial) no se proyectan.
+- Solo se modelan los **363** productos con `historial_completo = 1` (aparecen en las cinco hojas). los otros 328 vigentes no tienen ventas en la base. El modelado y el tablero cubren solo el top 10 por piezas totales (ene-2022 a sep-2026, unidad = 'PZA', sin KG), definido en 5.3.7 y confirmado en 5.5.
 - `productos`: 691 filas (`clave`, `descripcion`, `historial_completo`, `unidad` PZA/KG). `ventas`: solo los 363, llave (`clave`, `fecha`), fecha ISO día 01 (20,691 filas a sep-2026).
 - Los ceros son ventas reales; no se imputan. Los 11 productos en KG no se suman con piezas: los totales en piezas filtran `unidad = 'PZA'`.
 - Atípicos y variables de calendario **no se guardan en la base**: se calculan al modelar, con el umbral solo sobre datos de entrenamiento (Tukey, Q3 + 3×RIC sobre meses con venta, productos con ≥ 8 meses con venta). El pedido del kit 8419 de 2022-12 es un atípico confirmado y entra como parámetro.
@@ -83,9 +83,8 @@ No mezclar responsabilidades: la lógica de cálculo vive en `src/`; `app/` solo
 ## 6. Tablero [Informe]
 
 Funcionalidades requeridas:
-- Histórico de ventas vs. demanda proyectada (1 y 3 meses), por producto.
+- Histórico de ventas vs. demanda proyectada (1 y 3 meses), para los 10 productos modelados.
 - Filtros por producto y periodo.
-- Top K productos con mayores y menores proyecciones.
 - Variación esperada vs. periodo anterior.
 - Mes histórico de mayor y menor venta por producto.
 - Exportar proyecciones por producto.
@@ -115,7 +114,7 @@ Segmentación por canal · actualización en tiempo real · conversión de unida
 - Python 3.12. Formato y lint con **ruff**; pruebas con **pytest**.
 - `snake_case` para funciones/variables/módulos, `PascalCase` para clases, `UPPER_SNAKE_CASE` para constantes.
 - Identificadores en inglés en el código de modelado y tablero; en `src/etl` y `src/db` los de dominio van en español, alineados con las columnas de la BD (`clave`, `fecha`, `cantidad`, `historial_completo`). Docstrings, comentarios, documentación y UI en **español**. Columnas de BD en español y sin acentos.
-- Type hints en funciones públicas. Funciones puras y pequeñas para todo cálculo (métricas, features, top K, variación) → cada una con prueba en `tests/`.
+- Type hints en funciones públicas. Funciones puras y pequeñas para todo cálculo (métricas, features, variación) → cada una con prueba en `tests/`.
 - Configuración (umbrales, horizonte, K, temporadas) en un solo módulo de configuración, no hardcodeada en varios lugares.
 - Semillas fijas para reproducibilidad.
 - SQL parametrizado; nunca concatenar strings con entradas.

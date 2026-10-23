@@ -14,7 +14,7 @@ Complemento de `AGENTS.md`. Aquí van reglas que surgen **durante** el desarroll
 - [2026-10-25] Usar `holidays` (paquete, país MX) para festivos; Semana Santa se calcula aparte. Porqué: no viene en el calendario oficial de festivos.
 -->
 
-- [2026-10-22] `ventas` guarda solo los 363 con historial completo; `productos` conserva los 691. Porqué: solo esos se proyectan, y con `productos` completo un producto conocido no se confunde con uno nuevo.
+- [2026-10-22] `ventas` guarda solo los 363 con historial completo; `productos` conserva los 691. Porqué: solo esos se conservan para análisis, solo el top 10 se proyecta, y con `productos` completo un producto conocido no se confunde con uno nuevo.
 - [2026-10-22] Atípicos y variables de calendario se calculan al modelar, no se guardan. Porqué: mantener los datos originales y evitar que meses de evaluación influyan en el umbral.
 - [2026-10-22] Cargas mensuales: solo meses posteriores al último cargado, nunca se reescriben los anteriores. Porqué: decisión del equipo para no alterar datos ya validados.
 - [2026-10-22] Cada control de calidad que falla detiene la carga entera. Porqué: no dejar datos parciales en Supabase.
@@ -77,3 +77,4 @@ git push -u origin feat/etl-limpieza-fechas
     3. git branch -d chore/contexto-ia ------- borra la rama local
     4. git fetch --prune ----- limpia referencias a ramas remotas borradas 
 Las ramas deben vivir poco: días, no semanas. Mientras más tiempo dure una rama, más se aleja de main y más conflictos tendrás al fusionarla.
+- [2026-10-22] El modelado y el tablero cubren solo el top 10 de piezas (sin KG); se quitó el top K del tablero. Porqué: decisión del equipo con el asesor; la base conserva el ETL completo.
