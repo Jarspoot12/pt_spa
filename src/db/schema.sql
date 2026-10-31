@@ -14,3 +14,14 @@ CREATE TABLE IF NOT EXISTS ventas (
     cantidad  numeric(12, 2) NOT NULL CHECK (cantidad >= 0),
     PRIMARY KEY (clave, fecha)
 );
+
+-- Pronósticos que escribe el modelo (src/models) y lee el tablero (app/).
+-- fecha_corte = último mes cerrado usado; fecha = mes proyectado. Se conservan las corridas anteriores.
+CREATE TABLE IF NOT EXISTS pronosticos (
+    clave        text    NOT NULL REFERENCES productos (clave),
+    fecha_corte  date    NOT NULL CHECK (EXTRACT(DAY FROM fecha_corte) = 1),
+    fecha        date    NOT NULL CHECK (EXTRACT(DAY FROM fecha) = 1),
+    cantidad     numeric(12, 2) NOT NULL CHECK (cantidad >= 0),
+    PRIMARY KEY (clave, fecha_corte, fecha),
+    CHECK (fecha > fecha_corte)
+);

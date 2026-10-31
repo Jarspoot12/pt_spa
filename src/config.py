@@ -1,4 +1,4 @@
-"""Constantes globales del modelado (reglas comunes para comparar modelos del top 10).
+"""Constantes globales del modelado (reglas comunes para comparar modelos del top 10) y del tablero.
 Ubicación: src/config.py
 """
 from datetime import date
@@ -37,3 +37,10 @@ SEED = 42
 
 # --- Resultados (CSV ignorados por git; son datos de la empresa) ---
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "data" / "resultados"
+
+# --- Tablero (app/) ---
+# Confiabilidad según la desviación promedio de la proyección en la prueba (%). Semáforo pendiente:
+# se activa cuando `pronosticos` publique ese error. Hasta 20 % = alta (MAPE_TARGET); hasta 40 % = media.
+RELIABILITY_HIGH_MAX = MAPE_TARGET
+RELIABILITY_MEDIUM_MAX = 40.0
+CACHE_MINUTES = 60  # minutos que el tablero guarda en memoria lo leído de Supabase

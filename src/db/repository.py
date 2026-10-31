@@ -1,4 +1,5 @@
-"""Todo lo que toca la base de datos: conexión y acceso a las tablas `productos` y `ventas`. Ubicación: src/db/repository.py
+"""Todo lo que toca la base de datos: conexión y acceso a las tablas `productos` y `ventas`,
+y lectura de `pronosticos` para el tablero. Ubicación: src/db/repository.py
 Toda escritura ocurre dentro de `transaccion()`: si algo falla (o es simulación)
 se deshace por completo. Las ventas se insertan con DO NOTHING: un mes ya
 cargado nunca se modifica. Solo este archivo habla con la BD.
@@ -10,6 +11,7 @@ from pathlib import Path
 import pandas as pd
 
 SCHEMA = Path(__file__).with_name("schema.sql")
+COLUMNAS_PRONOSTICOS = ["clave", "fecha_corte", "fecha", "cantidad"]
 
 
 def conectar():
@@ -57,6 +59,16 @@ class Repositorio:
             cur.execute("SELECT clave, fecha, cantidad FROM ventas WHERE fecha BETWEEN %s AND %s", (desde, hasta))
             filas = cur.fetchall()
         df = pd.DataFrame(filas, columns=["clave", "fecha", "cantidad"])
+        df["cantidad"] = df["cantidad"].astype(float)
+        return df
+
+    def pronosticos(self) -> pd.DataFrame:
+        """Pronósticos que publica el modelo: clave, fecha_corte (último mes cerrado usado),
+        fecha (mes proyectado, día 01) y cantidad (piezas). Incluye todas las corridas."""
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT clave, fecha_corte, fecha, cantidad FROM pronosticos")
+            filas = cur.fetchall()
+        df = pd.DataFrame(filas, columns=COLUMNAS_PRONOSTICOS)
         df["cantidad"] = df["cantidad"].astype(float)
         return df
 
