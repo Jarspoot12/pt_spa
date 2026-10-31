@@ -2,7 +2,6 @@
 Solo lee resultados ya calculados en Supabase y llama a src/; no entrena ni calcula modelos.
 Ubicación: app/streamlit_app.py
 Ejecutar desde la raíz: streamlit run app/streamlit_app.py
-Modo DEMO con proyecciones sintéticas (ver app/demo.py): streamlit run app/streamlit_app.py -- --demo
 """
 import sys
 from datetime import date
@@ -14,7 +13,6 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # para importar src/ al ejecutar con streamlit
 
-from app.demo import DEMO_NOTICE, mark_export, synthetic_forecasts
 from src.config import CACHE_MINUTES, HORIZONS, TOP10_CLAVES
 from src.db.repository import Repositorio, conectar
 from src.features.indicators import (
@@ -28,7 +26,17 @@ from src.features.indicators import (
 HISTORY_COLOR = "#2a78d6"   # azul: lo que ya se vendió
 FORECAST_COLOR = "#eb6834"  # naranja: lo que se espera vender
 HISTORY_START = date(2022, 1, 1)
-DEMO = "--demo" in sys.argv
+# Tarjetas (st.metric) con borde y sombra ligera; los grises translúcidos funcionan en tema claro y oscuro.
+CARD_CSS = """
+<style>
+div[data-testid="stMetric"] {
+    border: 1px solid rgba(128, 128, 128, 0.28);
+    border-radius: 10px;
+    padding: 14px 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+</style>
+"""
 HORIZON_LABELS = {1: "Próximo mes", 2: "Próximos 2 meses", 3: "Próximos 3 meses"}
 
 
@@ -52,8 +60,7 @@ def product_label(clave: str, products: pd.DataFrame) -> str:
     return f"{clave} · {desc}"
 
 
-def build_chart(history: pd.DataFrame, forecasts: pd.DataFrame, peak, low, last_point,
-                forecast_name: str = "Proyección") -> go.Figure:
+def build_chart(history: pd.DataFrame, forecasts: pd.DataFrame, peak, low, last_point) -> go.Figure:
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=history["fecha"], y=history["cantidad"], name="Ventas reales",
@@ -66,7 +73,7 @@ def build_chart(history: pd.DataFrame, forecasts: pd.DataFrame, peak, low, last_
         x = [last_point[0]] + list(forecasts["fecha"])
         y = [last_point[1]] + list(forecasts["cantidad"])
         fig.add_trace(go.Scatter(
-            x=x, y=y, name=forecast_name, mode="lines+markers",
+            x=x, y=y, name="Proyección", mode="lines+markers",
             line={"color": FORECAST_COLOR, "width": 2, "dash": "dash"}, marker={"size": 8},
             customdata=[month_label(f) for f in x],
             hovertemplate="%{customdata}<br>%{y:,.0f} piezas<extra></extra>",
@@ -85,34 +92,29 @@ def build_chart(history: pd.DataFrame, forecasts: pd.DataFrame, peak, low, last_
     return fig
 
 
-def show_change_metrics(table: pd.DataFrame, suffix: str = "") -> None:
+def show_change_metrics(table: pd.DataFrame) -> None:
     cols = st.columns(len(table))
     for col, r in zip(cols, table.itertuples()):
         delta = None if pd.isna(r.variacion_pct) else f"{r.variacion_pct:+.1f} % vs. {r.ultimo_mes_cerrado}"
-        col.metric(f"Proyección {r.mes}{suffix}", f"{r.piezas_proyectadas:,} piezas", delta)
+        col.metric(f"Proyección {r.mes}", f"{r.piezas_proyectadas:,} piezas", delta)
 
 
 def main() -> None:
-    st.set_page_config(page_title=("DEMO · " if DEMO else "") + "Proyección de demanda", page_icon="📦", layout="wide")
+    st.set_page_config(page_title="Proyección de demanda", page_icon="📦", layout="wide")
+    st.markdown(CARD_CSS, unsafe_allow_html=True)
     products, sales, forecasts, last_closed = load_data()
-    tag = " (DEMO)" if DEMO else ""
-    if DEMO:
-        # Reemplaza en memoria lo leído de `proyecciones`; nada se escribe en Supabase.
-        forecasts = synthetic_forecasts(sales, last_closed, TOP10_CLAVES)
-        st.error(f"**MODO DEMO · {DEMO_NOTICE}.** Las ventas son reales, pero las proyecciones y variaciones "
-                 "se inventaron solo para mostrar cómo se verá el tablero. "
-                 "No las uses para decidir compras.", icon="🧪")
 
-    st.title("Proyección de demanda por producto" + tag)
+    st.title("Proyección de demanda por producto")
     st.caption(f"Datos al cierre de {month_label(last_closed)}. Se actualizan una vez al mes, "
                "cuando se cierra el mes. La proyección es una referencia para planear compras; "
                "la decisión final es del equipo.")
 
     months = sorted(sales["fecha"].unique())
-    f1, f2, f3 = st.columns([2, 3, 2])
+    f1, f2a, f2b, f3 = st.columns([2, 1.25, 1.25, 2])
     clave = f1.selectbox("Producto", TOP10_CLAVES, format_func=lambda c: product_label(c, products))
-    start, end = f2.select_slider("Periodo de ventas a mostrar", options=months, value=(months[0], months[-1]),
-                                  format_func=lambda f: month_label(f, short=True))
+    start = f2a.selectbox("Ventas desde", months, index=0, format_func=month_label)
+    end_options = [f for f in months if f >= start]  # "hasta" nunca puede quedar antes de "desde"
+    end = f2b.selectbox("Ventas hasta", end_options, index=len(end_options) - 1, format_func=month_label)
     horizon = f3.radio("Meses a proyectar", HORIZONS, index=len(HORIZONS) - 1,
                        format_func=HORIZON_LABELS.get, horizontal=True)
 
@@ -128,7 +130,7 @@ def main() -> None:
         st.info("Las proyecciones todavía no están disponibles. Aparecerán aquí en cuanto se publiquen; "
                 "mientras tanto puedes consultar las ventas reales.")
     else:
-        show_change_metrics(table, tag)
+        show_change_metrics(table)
 
     peak, low = peak_and_low(history)
     m1, m2 = st.columns(2)
@@ -136,18 +138,13 @@ def main() -> None:
     m2.metric("Mes de menor venta en el periodo", month_label(low[0]), f"{low[1]:,.0f} piezas", delta_color="off", delta_arrow="off")
 
     last_row = product_sales.iloc[-1]
-    st.plotly_chart(build_chart(history, product_forecasts, peak, low, (last_row["fecha"], last_row["cantidad"]),
-                                "Proyección DEMO (sintética)" if DEMO else "Proyección"),
+    st.plotly_chart(build_chart(history, product_forecasts, peak, low, (last_row["fecha"], last_row["cantidad"])),
                     width="stretch")
 
-    st.subheader("Resumen de los 10 productos" + tag)
+    st.subheader("Resumen de los 10 productos")
     if table_all.empty:
         st.info("El resumen y la descarga se habilitan cuando se publiquen las proyecciones.")
         return
-    if DEMO:
-        st.warning(f"{DEMO_NOTICE}. Los CSV de este modo llevan la columna AVISO y el prefijo DEMO_.", icon="🧪")
-        table, table_all = mark_export(table), mark_export(table_all)
-    prefix = "DEMO_" if DEMO else ""
     st.dataframe(table_all, hide_index=True, width="stretch", column_config={
         "clave": "Clave", "descripcion": "Producto", "mes": "Mes proyectado",
         "piezas_proyectadas": st.column_config.NumberColumn("Piezas proyectadas", format="%d"),
@@ -157,9 +154,9 @@ def main() -> None:
     })
     d1, d2 = st.columns(2)
     d1.download_button("Descargar proyección de este producto (CSV)", export_csv(table),
-                       file_name=f"{prefix}proyeccion_{clave}.csv", mime="text/csv")
+                       file_name=f"proyeccion_{clave}.csv", mime="text/csv")
     d2.download_button("Descargar proyecciones de los 10 productos (CSV)", export_csv(table_all),
-                       file_name=f"{prefix}proyecciones_top10.csv", mime="text/csv")
+                       file_name="proyecciones_top10.csv", mime="text/csv")
 
 
 main()
